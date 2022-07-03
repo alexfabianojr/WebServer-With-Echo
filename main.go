@@ -16,6 +16,8 @@ func main() {
 
 	webClient := echo.New()
 
+	webClient.Use(ServerHeader)
+
 	webClient.GET("/alive", handleAlive)
 	webClient.GET("/cats/:data", handleSearchCats)
 
@@ -141,4 +143,11 @@ func handleAddHamster(context echo.Context) error {
 
 func mainAdmin(context echo.Context) error {
 	return context.String(http.StatusOK, "You found an grouped link")
+}
+
+func ServerHeader(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(context echo.Context) error {
+		context.Response().Header().Set(echo.HeaderServer, "BlueBot 1.0")
+		return next(context)
+	}
 }
