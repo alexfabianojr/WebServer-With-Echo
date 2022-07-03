@@ -23,15 +23,24 @@ func main() {
 	webClient.POST("/dogs", handleAddDog)
 	webClient.POST("/hamster", handleAddHamster) // cleaner way with pure echo
 
-	webClient.Start(":8080")
-
-	groups := webClient.Group("/admin", middleware2.Logger())
+	groups := webClient.Group("/admin")
 
 	groups.Use(middleware2.LoggerWithConfig(middleware2.LoggerConfig{
 		Format: `[${time_rfc3339} ${status} ${method} ${path}]` + "/n",
 	})) // best way to add middleware
 
-	groups.GET("/admin", mainAdmin)
+	groups.Use(middleware2.BasicAuth(
+		func(username string, password string, context echo.Context) (bool, error) {
+			if username == "jack" && password == "1234" {
+				return true, nil
+			} else {
+				return false, echo.ErrForbidden
+			}
+		}))
+
+	groups.GET("/main", mainAdmin)
+
+	webClient.Start(":8080")
 }
 
 func handleAlive(context echo.Context) error {
