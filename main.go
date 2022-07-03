@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/labstack/echo"
+	middleware2 "github.com/labstack/echo/middleware"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -23,6 +24,14 @@ func main() {
 	webClient.POST("/hamster", handleAddHamster) // cleaner way with pure echo
 
 	webClient.Start(":8080")
+
+	groups := webClient.Group("/admin", middleware2.Logger())
+
+	groups.Use(middleware2.LoggerWithConfig(middleware2.LoggerConfig{
+		Format: `[${time_rfc3339} ${status} ${method} ${path}]` + "/n",
+	})) // best way to add middleware
+
+	groups.GET("/admin", mainAdmin)
 }
 
 func handleAlive(context echo.Context) error {
@@ -119,4 +128,8 @@ func handleAddHamster(context echo.Context) error {
 	log.Printf("This is your hamster: %v", hamster)
 
 	return context.String(http.StatusAccepted, "Created dog")
+}
+
+func mainAdmin(context echo.Context) error {
+	return context.String(http.StatusOK, "You found an grouped link")
 }
