@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
+	"time"
 )
 
 func main() {
@@ -20,6 +22,7 @@ func main() {
 
 	webClient.GET("/alive", handleAlive)
 	webClient.GET("/cats/:data", handleSearchCats)
+	webClient.GET("/login", handleLogin)
 
 	webClient.POST("/cats", handlerAddCat)
 	webClient.POST("/dogs", handleAddDog)
@@ -40,9 +43,19 @@ func main() {
 			}
 		}))
 
-	groups.GET("/main", mainAdmin)
+	groups.GET("/main", handleMainAdmin)
 
-	webClient.Start(":8080")
+	cookieGroup := webClient.Group("/cookies")
+
+	cookieGroup.Use(checkCookie)
+
+	cookieGroup.GET("", handleLoginCookies)
+
+	error := webClient.Start(":8080")
+
+	if error != nil {
+		panic(error)
+	}
 }
 
 func handleAlive(context echo.Context) error {
@@ -141,7 +154,7 @@ func handleAddHamster(context echo.Context) error {
 	return context.String(http.StatusAccepted, "Created dog")
 }
 
-func mainAdmin(context echo.Context) error {
+func handleMainAdmin(context echo.Context) error {
 	return context.String(http.StatusOK, "You found an grouped link")
 }
 
@@ -149,5 +162,50 @@ func ServerHeader(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(context echo.Context) error {
 		context.Response().Header().Set(echo.HeaderServer, "BlueBot 1.0")
 		return next(context)
+	}
+}
+
+func handleLoginCookies(context echo.Context) error {
+	return context.String(http.StatusOK, "Cookies page")
+}
+
+func handleLogin(context echo.Context) error {
+	username := context.QueryParam("username")
+	password := context.QueryParam("password")
+
+	if username == "jack" && password == "1234" {
+		cookie := &http.Cookie{} // same than cookie := new(http.Cookie)
+
+		cookie.Name = "sessionID"
+		cookie.Value = "some_string"
+		cookie.Expires = time.Now().Add(48 * time.Hour)
+
+		context.SetCookie(cookie)
+
+		return context.String(http.StatusOK, "You are logged in!")
+	}
+
+	return context.String(http.StatusUnauthorized, "Wrong username or password")
+}
+
+func checkCookie(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(context echo.Context) error {
+		cookie, error := context.Cookie("sessionID")
+
+		if error != nil {
+			log.Println(error.Error())
+
+			if strings.Contains(error.Error(), "named cookie not present") {
+				return context.String(http.StatusUnauthorized, "Needed cookie not present")
+			}
+
+			return error
+		}
+
+		if cookie.Value == "some_string" {
+			return next(context)
+		}
+
+		return context.String(http.StatusUnauthorized, "You don't have the right cookie")
 	}
 }
