@@ -57,6 +57,8 @@ func main() {
 	needsJwtGroup.Use(middleware2.JWTWithConfig(middleware2.JWTConfig{
 		SigningMethod: "HS512",
 		SigningKey:    []byte("some_secret_key"),
+		//TokenLookup: "header:MyHeader", // The header name that where the program is going to look for the token (replaces Authorization)
+		//AuthScheme: "iLoveDogs", // Replaces Bearer in the token value, ex: Authorization: iLoveDogs + token
 	}))
 
 	needsJwtGroup.GET("", handleJwt)
