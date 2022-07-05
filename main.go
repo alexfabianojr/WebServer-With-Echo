@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/labstack/echo"
 	middleware2 "github.com/labstack/echo/middleware"
 	"io/ioutil"
@@ -50,6 +51,15 @@ func main() {
 	cookieGroup.Use(checkCookie)
 
 	cookieGroup.GET("", handleLoginCookies)
+
+	needsJwtGroup := webClient.Group("/jwt")
+
+	needsJwtGroup.Use(middleware2.JWTWithConfig(middleware2.JWTConfig{
+		SigningMethod: "HS512",
+		SigningKey:    []byte("some_secret_key"),
+	}))
+
+	needsJwtGroup.GET("", handleJwt)
 
 	error := webClient.Start(":8080")
 
@@ -182,7 +192,17 @@ func handleLogin(context echo.Context) error {
 
 		context.SetCookie(cookie)
 
-		return context.String(http.StatusOK, "You are logged in!")
+		token, error := createJwt()
+
+		if error != nil {
+			log.Println(error)
+			return context.String(http.StatusInternalServerError, "Something went wrong")
+		}
+
+		return context.JSON(http.StatusOK, map[string]string{
+			"message": "You are logged in!",
+			"token":   token,
+		})
 	}
 
 	return context.String(http.StatusUnauthorized, "Wrong username or password")
@@ -208,4 +228,39 @@ func checkCookie(next echo.HandlerFunc) echo.HandlerFunc {
 
 		return context.String(http.StatusUnauthorized, "You don't have the right cookie")
 	}
+}
+
+type JwtPayload struct {
+	Name string `json:"name"`
+	jwt.StandardClaims
+}
+
+func createJwt() (string, error) {
+	payload := JwtPayload{
+		Name: "jack",
+		StandardClaims: jwt.StandardClaims{
+			Id:        "main_user_id",
+			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
+		},
+	}
+
+	rawJwt := jwt.NewWithClaims(jwt.SigningMethodHS512, payload)
+
+	token, error := rawJwt.SignedString([]byte("some_secret_key"))
+
+	if error != nil {
+		return "", error
+	}
+
+	return token, nil
+}
+
+func handleJwt(context echo.Context) error {
+	user := context.Get("user")
+	token := user.(*jwt.Token)
+	claims := token.Claims.(jwt.MapClaims)
+
+	log.Println(claims["name"], claims["jti"])
+
+	return context.String(http.StatusOK, "You are on the secret page")
 }
